@@ -1,0 +1,32 @@
+name: custom-build (KrikSG)
+
+# Manually-triggered custom build for the "KrikSG" client.
+#
+# The server binding, key and branding are compiled into the sources
+# (see `apply_embedded_custom_build` in `src/common.rs`), so every artifact
+# produced by this run is already the custom client — no signed `custom.txt`
+# from the hosted generator is required.
+#
+# This reuses the maintained release pipeline (`flutter-build.yml`) which builds
+# Windows, macOS and Android (among other targets). The Windows/macOS/Android
+# artifacts appear under the run's "Artifacts" section. Signing is optional:
+# without the signing secrets the builds are produced unsigned but functional.
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload-artifact:
+        description: "Upload build outputs as workflow artifacts"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    uses: ./.github/workflows/flutter-build.yml
+    with:
+      upload-artifact: ${{ inputs.upload-artifact }}
+      upload-tag: "custom-krik"
+    secrets: inherit
