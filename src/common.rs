@@ -2081,6 +2081,11 @@ pub fn rustdesk_interval(i: Interval) -> ThrottledInterval {
 }
 
 pub fn load_custom_client() {
+    // Apply the compiled-in custom-build configuration first. RustDesk's
+    // custom-client service normally delivers these values through a signed
+    // `custom.txt` blob; a self-hosted build cannot produce that signature,
+    // so the settings are baked into the binary and applied directly here.
+    apply_embedded_custom_build();
     #[cfg(debug_assertions)]
     if let Ok(data) = std::fs::read_to_string("./custom.txt") {
         read_custom_client(data.trim());
@@ -2099,6 +2104,57 @@ pub fn load_custom_client() {
             return;
         };
         read_custom_client(&data.trim());
+    }
+}
+
+/// Compiled-in custom-build configuration, generated from the "KrikSG" custom
+/// client JSON. Values are written straight into the config maps so they take
+/// effect without the signed `custom.txt` blob that the hosted generator uses.
+///
+/// - Server binding (rendezvous server + key) goes into `OVERWRITE_SETTINGS`
+///   so it is forced and cannot be changed by the user.
+/// - Feature / permission toggles go into `DEFAULT_SETTINGS` so they seed the
+///   initial state while remaining user-adjustable, matching the JSON's
+///   "default" (not "override") markers.
+fn apply_embedded_custom_build() {
+    // Branding: application name (drives window title, tray text and the
+    // per-app config directory, isolating this build from stock RustDesk).
+    *config::APP_NAME.write().unwrap() = "KrikSG".to_owned();
+
+    // Forced server binding.
+    {
+        let mut overwrite = config::OVERWRITE_SETTINGS.write().unwrap();
+        overwrite.insert(
+            keys::OPTION_CUSTOM_RENDEZVOUS_SERVER.to_string(),
+            "krikisifsg.tinestuff.com".to_string(),
+        );
+        overwrite.insert(
+            keys::OPTION_KEY.to_string(),
+            "0smIpSgrOUf87k9EvKVUlvhbzDWA2Ws9ns+04mu9jdM=".to_string(),
+        );
+    }
+
+    // Feature / permission defaults from the custom client JSON.
+    {
+        let mut default = config::DEFAULT_SETTINGS.write().unwrap();
+        let mut set = |k: &str, v: &str| {
+            default.insert(k.to_string(), v.to_string());
+        };
+        set(keys::OPTION_ACCESS_MODE, "full"); // permissionsType: full
+        set(keys::OPTION_DIRECT_SERVER, "Y"); // enableDirectIP
+        set(keys::OPTION_ENABLE_KEYBOARD, "Y");
+        set(keys::OPTION_ENABLE_CLIPBOARD, "Y");
+        set(keys::OPTION_ENABLE_FILE_TRANSFER, "Y");
+        set(keys::OPTION_ENABLE_AUDIO, "Y");
+        set(keys::OPTION_ENABLE_TUNNEL, "Y"); // enableTCP
+        set(keys::OPTION_ENABLE_REMOTE_RESTART, "Y");
+        set(keys::OPTION_ENABLE_RECORD_SESSION, "Y");
+        set(keys::OPTION_ENABLE_BLOCK_INPUT, "Y");
+        set(keys::OPTION_ALLOW_REMOTE_CONFIG_MODIFICATION, "Y"); // enableRemoteModi
+        set(keys::OPTION_ENABLE_REMOTE_PRINTER, "Y");
+        set(keys::OPTION_ENABLE_CAMERA, "Y");
+        set(keys::OPTION_ENABLE_TERMINAL, "Y");
+        set(keys::OPTION_THEME, "system");
     }
 }
 
