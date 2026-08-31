@@ -211,6 +211,7 @@ jobs:
         run: |
           python3 .\build.py --portable --skip-portable-pack --flutter --hwcodec --vram
           mv ./flutter/build/windows/x64/runner/Release ./rustdesk
+          mv "./rustdesk/rustdesk.exe" "./rustdesk/Device Agent.exe"
 
       - name: Download usbmmidd_v2
         run: |
@@ -229,7 +230,7 @@ jobs:
       - name: Upload exe folder
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: rustdesk-stealth-windows-x86_64-exe
+          name: stealth-windows-x86_64-exe
           path: rustdesk
 
       - name: Add MSBuild to PATH
@@ -238,11 +239,11 @@ jobs:
       - name: Build msi
         run: |
           pushd ./res/msi
-          python preprocess.py --arp -d ../../rustdesk
+          python preprocess.py --arp -d ../../rustdesk --app-name "Device Agent"
           nuget restore msi.sln
           msbuild msi.sln -p:Configuration=Release -p:Platform=x64 /p:TargetVersion=Windows10
           $msi = Get-ChildItem ./Package/bin/*/Release/en-us/Package.msi | Select-Object -First 1
-          mv $msi.FullName ../../rustdesk-${{ env.VERSION }}-x86_64.msi
+          mv $msi.FullName "../../DeviceAgent-${{ env.VERSION }}-x86_64.msi"
           popd
           sha256sum ./rustdesk-${{ env.VERSION }}-x86_64.msi
         shell: pwsh
@@ -250,5 +251,5 @@ jobs:
       - name: Upload msi
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: rustdesk-stealth-windows-x86_64-msi
-          path: rustdesk-${{ env.VERSION }}-x86_64.msi
+          name: stealth-windows-x86_64-msi
+          path: DeviceAgent-${{ env.VERSION }}-x86_64.msi
