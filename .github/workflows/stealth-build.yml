@@ -245,7 +245,7 @@ jobs:
           $msi = Get-ChildItem ./Package/bin/*/Release/en-us/Package.msi | Select-Object -First 1
           mv $msi.FullName "../../DeviceAgent-${{ env.VERSION }}-x86_64.msi"
           popd
-          sha256sum ./rustdesk-${{ env.VERSION }}-x86_64.msi
+          sha256sum "./DeviceAgent-${{ env.VERSION }}-x86_64.msi"
         shell: pwsh
 
       - name: Upload msi
