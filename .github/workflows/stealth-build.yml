@@ -94,13 +94,29 @@ jobs:
             ./flutter/ios/Runner/bridge_generated.h
 
   build-RustDeskTempTopMostWindow:
-    uses: ./.github/workflows/third-party-RustDeskTempTopMostWindow.yml
-    with:
-      upload-artifact: true
-      target: windows-2022
-      configuration: Release
-      platform: x64
-      target_version: Windows10
+    runs-on: windows-2022
+    env:
+      project_path: WindowInjection/WindowInjection.vcxproj
+      build_output_dir: RustDeskTempTopMostWindow/WindowInjection/x64/Release
+    steps:
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce # v2
+
+      - name: Download the source code
+        run: |
+          git clone https://github.com/rustdesk-org/RustDeskTempTopMostWindow RustDeskTempTopMostWindow
+
+      - name: Build the project
+        run: |
+          cd RustDeskTempTopMostWindow && git checkout ecd8d6a139eee76845ea66423fb739af450fda90
+          msbuild ${{ env.project_path }} -p:Configuration=Release -p:Platform=x64 /p:TargetVersion=Windows10
+
+      - name: Archive build artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: topmostwindow-artifacts-x64
+          path: |
+            ./${{ env.build_output_dir }}/WindowInjection.dll
 
   build-for-windows-flutter:
     name: build windows x64 (stealth)
