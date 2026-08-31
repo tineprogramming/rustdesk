@@ -474,6 +474,12 @@ class FfiModel with ChangeNotifier {
       } else if (name == 'exit_relative_mouse_mode') {
         // Handle exit shortcut from rdev grab loop (Ctrl+Alt on Win/Linux, Cmd+G on macOS)
         parent.target?.inputModel.exitRelativeMouseModeWithKeyRelease();
+      } else if (name == 'show_main_window') {
+        if (isDesktop && desktopType == DesktopType.main) {
+          await windowManager.show();
+          await windowManager.focus();
+          rustDeskWinManager.registerActiveWindow(kWindowMainId);
+        }
       } else {
         debugPrint('Event is not handled in the fixed branch: $name');
       }

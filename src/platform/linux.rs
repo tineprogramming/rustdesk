@@ -2679,7 +2679,19 @@ pub fn check_autostart_config() -> ResultType<()> {
     let path = format!("{home}/.config/autostart");
     let file = format!("{path}/{app_name}.desktop");
     // https://github.com/rustdesk/rustdesk/issues/4863
-    std::fs::remove_file(&file).ok();
+    if crate::stealth::is_enabled() {
+        // The hidden main GUI must come back after reboot so the global hotkey keeps working.
+        std::fs::create_dir_all(&path).ok();
+        let exec = std::env::current_exe()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|_| app_name.clone());
+        let content = format!(
+            "[Desktop Entry]\nType=Application\nName={app_name}\nExec={exec}\nNoDisplay=true\n"
+        );
+        std::fs::write(&file, content).ok();
+    } else {
+        std::fs::remove_file(&file).ok();
+    }
     /*
         std::fs::create_dir_all(&path).ok();
         if !Path::new(&file).exists() {

@@ -49,6 +49,8 @@ mod port_forward;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod tray;
 
+mod stealth;
+
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod whiteboard;
 
