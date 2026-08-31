@@ -160,7 +160,12 @@ void runMainApp(bool startService) async {
     debugPrint("handled by uni links: $handledByUniLinks");
     final isStealth =
         isDesktop && bind.mainGetOptionSync(key: 'stealth-mode') == 'Y';
-    if (isStealth || handledByUniLinks || handleUriLink(cmdArgs: kBootArgs)) {
+    if (isStealth && !bind.mainStealthFirstRunDone()) {
+      windowManager.show();
+      windowManager.focus();
+      rustDeskWinManager.registerActiveWindow(kWindowMainId);
+      showStealthFirstRunId();
+    } else if (isStealth || handledByUniLinks || handleUriLink(cmdArgs: kBootArgs)) {
       windowManager.hide();
     } else {
       windowManager.show();
@@ -173,6 +178,39 @@ void runMainApp(bool startService) async {
     // Do not use `windowManager.setResizable()` here.
     setResizable(!bind.isIncomingOnly());
   });
+}
+
+// Shows the machine ID once right after installation, so the deployment
+// does not need any other way to read the ID.
+void showStealthFirstRunId() async {
+  var id = '';
+  BuildContext? context;
+  for (var i = 0; i < 20; i++) {
+    id = await bind.mainGetMyId();
+    context = globalKey.currentContext;
+    if (id.isNotEmpty && context != null) break;
+    await Future.delayed(const Duration(milliseconds: 500));
+  }
+  if (id.isEmpty || context == null) return;
+  await showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => AlertDialog(
+      title: Text(translate('Your Desktop')),
+      content: Text(
+        id,
+        style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+      ),
+      actions: [
+        ElevatedButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(translate('OK')),
+        ),
+      ],
+    ),
+  );
+  await bind.mainStealthMarkFirstRun();
+  await windowManager.hide();
 }
 
 void runMobileApp() async {

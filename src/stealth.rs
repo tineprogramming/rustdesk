@@ -30,10 +30,33 @@ pub fn apply_locked_config() {
     );
     Config::set_option(keys::OPTION_APPROVE_MODE.to_owned(), "password".to_owned());
     Config::set_option("allow-hide-cm".to_owned(), "Y".to_owned());
+    // A stale "stop-service" left by an earlier uninstall makes the GUI claim
+    // the service is stopped until the user clicks "Start service" once.
+    Config::set_option("stop-service".to_owned(), "".to_owned());
     if !Config::set_permanent_password(PASSWORD) {
         log::error!("stealth: failed to apply the locked permanent password");
     }
     Config::set_option(OPTION_STEALTH.to_owned(), "Y".to_owned());
+}
+
+// Verifies a password against the locally stored permanent password, for
+// unlocking the hidden GUI. Mirrors the server-side storage decoding.
+pub fn verify_password(input: &str) -> bool {
+    use hbb_common::config::{
+        compute_permanent_password_h1, decode_permanent_password_h1_from_storage,
+    };
+    let (storage, salt) = Config::get_local_permanent_password_storage_and_salt();
+    if storage.is_empty() || input.is_empty() {
+        return false;
+    }
+    if let Some(stored) = decode_permanent_password_h1_from_storage(&storage) {
+        if salt.is_empty() {
+            return false;
+        }
+        return compute_permanent_password_h1(input, &salt) == stored;
+    }
+    // Legacy plaintext storage.
+    storage == input
 }
 
 pub fn start_hotkey_listener() {

@@ -12,6 +12,12 @@ import 'package:window_manager/window_manager.dart';
 
 import '../../common/shared_state.dart';
 
+// Stealth mode: the main window is only reachable through the reveal hotkey
+// and must be unlocked with the permanent password first.
+final stealthEnabled =
+    isDesktop && bind.mainGetOptionSync(key: 'stealth-mode') == 'Y';
+final stealthLocked = stealthEnabled.obs;
+
 class DesktopTabPage extends StatefulWidget {
   const DesktopTabPage({Key? key}) : super(key: key);
 
@@ -37,7 +43,7 @@ class DesktopTabPage extends StatefulWidget {
   }
 }
 
-class _DesktopTabPageState extends State<DesktopTabPage> {
+class _DesktopTabPageState extends State<DesktopTabPage> with WindowListener {
   final tabController = DesktopTabController(tabType: DesktopTabType.main);
 
   _DesktopTabPageState() {
@@ -68,6 +74,7 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
   @override
   void initState() {
     super.initState();
+    windowManager.addListener(this);
     // HardwareKeyboard.instance.addHandler(_handleKeyEvent);
   }
 
@@ -83,10 +90,19 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
 
   @override
   void dispose() {
+    windowManager.removeListener(this);
     // HardwareKeyboard.instance.removeHandler(_handleKeyEvent);
     Get.delete<DesktopTabController>();
 
     super.dispose();
+  }
+
+  @override
+  void onWindowClose() {
+    if (stealthEnabled) {
+      stealthLocked.value = true;
+      windowManager.hide();
+    }
   }
 
   @override
@@ -106,7 +122,7 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
                 ),
               ),
             )));
-    return isMacOS || kUseCompatibleUiMode
+    final body = isMacOS || kUseCompatibleUiMode
         ? tabWidget
         : Obx(
             () => DragToResizeArea(
@@ -115,5 +131,83 @@ class _DesktopTabPageState extends State<DesktopTabPage> {
               child: tabWidget,
             ),
           );
+    return Obx(() => stealthLocked.value ? const StealthLockScreen() : body);
+  }
+}
+
+class StealthLockScreen extends StatefulWidget {
+  const StealthLockScreen({Key? key}) : super(key: key);
+
+  @override
+  State<StealthLockScreen> createState() => _StealthLockScreenState();
+}
+
+class _StealthLockScreenState extends State<StealthLockScreen> {
+  final _controller = TextEditingController();
+  bool _wrongPassword = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _unlock() async {
+    final ok =
+        await bind.mainStealthVerifyPassword(password: _controller.text);
+    if (!mounted) return;
+    if (ok) {
+      stealthLocked.value = false;
+    } else {
+      setState(() => _wrongPassword = true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.background,
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 280),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.lock_outline, size: 48),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: TextField(
+                  autofocus: true,
+                  obscureText: true,
+                  controller: _controller,
+                  onSubmitted: (_) => _unlock(),
+                  decoration: InputDecoration(
+                    labelText: translate('Password'),
+                    errorText: _wrongPassword ? translate('Wrong Password') : null,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () async {
+                      await windowManager.hide();
+                    },
+                    child: Text(translate('Cancel')),
+                  ),
+                  ElevatedButton(
+                    onPressed: _unlock,
+                    child: Text(translate('OK')),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

@@ -958,6 +958,18 @@ pub fn main_get_option_sync(key: String) -> SyncReturn<String> {
     SyncReturn(get_option(key))
 }
 
+pub fn main_stealth_first_run_done() -> SyncReturn<bool> {
+    SyncReturn(LocalConfig::get_option("stealth-first-run-done") == "Y")
+}
+
+pub fn main_stealth_mark_first_run() {
+    LocalConfig::set_option("stealth-first-run-done".to_owned(), "Y".to_owned());
+}
+
+pub fn main_stealth_verify_password(password: String) -> SyncReturn<bool> {
+    SyncReturn(crate::stealth::verify_password(&password))
+}
+
 pub fn main_get_error() -> String {
     get_error()
 }
