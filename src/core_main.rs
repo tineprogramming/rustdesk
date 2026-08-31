@@ -421,9 +421,11 @@ pub fn core_main() -> Option<Vec<String>> {
             crate::privacy_mode::restore_reg_connectivity(true, false);
             // The service keeps a hidden GUI alive in the user session so the
             // reveal hotkey works from login without any shortcut or manual start.
+            // It must run without elevation, or UIPI blocks remotely injected
+            // keystrokes (AnyDesk etc.) from triggering its hotkey.
             #[cfg(windows)]
             if crate::stealth::is_enabled() && !crate::check_process("", true) {
-                hbb_common::allow_err!(crate::run_me(Vec::<&str>::new()));
+                hbb_common::allow_err!(crate::platform::run_as_user(vec![]));
             }
             #[cfg(any(target_os = "linux", target_os = "windows"))]
             {
