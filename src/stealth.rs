@@ -41,11 +41,7 @@ pub fn start_hotkey_listener() {
     {
         windows_hotkey();
     }
-    #[cfg(all(target_os = "linux", feature = "stealth"))]
-    {
-        linux_hotkey();
-    }
-    #[cfg(not(any(windows, all(target_os = "linux", feature = "stealth"))))]
+    #[cfg(not(windows))]
     {
         log::info!("stealth: global hotkey is not supported on this platform");
     }
@@ -74,7 +70,7 @@ fn windows_hotkey() {
             if RegisterHotKey(
                 std::ptr::null_mut(),
                 HOTKEY_ID,
-                MOD_CONTROL | MOD_ALT | MOD_SHIFT,
+                (MOD_CONTROL | MOD_ALT | MOD_SHIFT) as u32,
                 HOTKEY_VK,
             ) == 0
             {
@@ -87,7 +83,7 @@ fn windows_hotkey() {
                 wParam: 0,
                 lParam: 0,
                 time: 0,
-                pt: winapi::um::windef::POINT { x: 0, y: 0 },
+                pt: winapi::shared::windef::POINT { x: 0, y: 0 },
             };
             while GetMessageW(&mut msg, std::ptr::null_mut(), 0, 0) > 0 {
                 TranslateMessage(&msg);
@@ -102,98 +98,3 @@ fn windows_hotkey() {
     }
 }
 
-#[cfg(all(target_os = "linux", feature = "stealth"))]
-fn linux_hotkey() {
-    use x11rb::connection::Connection;
-    use x11rb::cookie::Cookie;
-    use x11rb::protocol::keysyms::key_R;
-    use x11rb::protocol::{
-        xproto::{
-            ControlMask, GrabMode, LockMask, Mod1Mask, Mod2Mask, ShiftMask,
-        },
-        Event,
-    };
-    if let Err(err) = std::thread::Builder::new()
-        .name("stealth-hotkey".into())
-        .spawn(|| {
-            let (conn, screen) = match x11rb::connect(None) {
-                Ok(v) => v,
-                Err(err) => {
-                    log::error!("stealth: cannot connect to X server: {err}");
-                    return;
-                }
-            };
-            let root = conn.setup().roots[screen].root;
-            let setup = conn.setup();
-            let min_keycode = setup.min_keycode;
-            let max_keycode = setup.max_keycode;
-            // QueryKeymap only tells which keys are pressed right now; the
-            // keysym -> keycode table comes from GetKeyboardMapping.
-            let reply = match conn
-                .get_keyboard_mapping(min_keycode, max_keycode - min_keycode)
-            {
-                Ok(v) => match v.reply() {
-                    Ok(v) => v,
-                    Err(err) => {
-                        log::error!("stealth: get_keyboard_mapping reply failed: {err}");
-                        return;
-                    }
-                },
-                Err(err) => {
-                    log::error!("stealth: get_keyboard_mapping failed: {err}");
-                    return;
-                }
-            };
-            let per = reply.keysyms_per_keycode as usize;
-            if per == 0 {
-                log::error!("stealth: empty keyboard mapping");
-                return;
-            }
-            let mut keycode: u8 = 0;
-            let mut found = false;
-            for (i, group) in reply.keysyms.chunks(per).enumerate() {
-                if group.contains(&key_R) {
-                    keycode = min_keycode + i as u8;
-                    found = true;
-                    break;
-                }
-            }
-            if !found {
-                log::error!("stealth: keycode for 'R' not found");
-                return;
-            }
-            // Ctrl+Alt+Shift+R, with CapsLock/NumLock left free.
-            let base = ControlMask as u32 | Mod1Mask as u32 | ShiftMask as u32;
-            for extra in [
-                0u32,
-                LockMask as u32,
-                Mod2Mask as u32,
-                LockMask as u32 | Mod2Mask as u32,
-            ] {
-                if let Err(err) = conn.grab_key(
-                    false,
-                    root,
-                    base | extra,
-                    keycode,
-                    GrabMode::Async,
-                    GrabMode::Async,
-                ) {
-                    log::error!("stealth: grab_key failed: {err}");
-                }
-            }
-            loop {
-                match conn.wait_for_event() {
-                    Ok(Event::KeyPress(ev)) if ev.detail == keycode => {
-                        show_main_window();
-                    }
-                    Ok(_) => {}
-                    Err(err) => {
-                        log::error!("stealth: X connection lost: {err}");
-                        break;
-                    }
-                }
-            }
-        }) {
-        log::error!("stealth: failed to spawn hotkey thread: {err}");
-    }
-}
