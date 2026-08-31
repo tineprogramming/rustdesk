@@ -131,7 +131,52 @@ class _DesktopTabPageState extends State<DesktopTabPage> with WindowListener {
               child: tabWidget,
             ),
           );
-    return Obx(() => stealthLocked.value ? const StealthLockScreen() : body);
+    return Obx(() {
+      if (stealthLocked.value) {
+        return const StealthLockScreen();
+      }
+      if (!stealthEnabled) {
+        return body;
+      }
+      return Stack(
+        children: [
+          body,
+          Positioned(
+            right: 12,
+            bottom: 12,
+            child: OutlinedButton(
+              onPressed: _confirmUninstall,
+              child: Text(translate('Uninstall')),
+            ),
+          ),
+        ],
+      );
+    });
+  }
+
+  Future<void> _confirmUninstall() async {
+    final res = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(translate('Uninstall')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(translate('Cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(translate('OK')),
+          ),
+        ],
+      ),
+    );
+    if (res == true) {
+      if (!await bind.mainStealthUninstall()) {
+        return;
+      }
+      await windowManager.hide();
+    }
   }
 }
 

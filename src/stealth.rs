@@ -63,6 +63,68 @@ pub fn verify_password(input: &str) -> bool {
     storage == input
 }
 
+// Removes the installed MSI product. The Programs & Features entry is hidden,
+// so this and `msiexec /x <ProductCode>` are the only ways to uninstall.
+#[cfg(windows)]
+pub fn uninstall_product() -> bool {
+    use std::os::windows::process::CommandExt;
+    use winreg::enums::{HKEY_LOCAL_MACHINE, KEY_READ};
+    use winreg::RegKey;
+
+    let name = crate::get_app_name();
+    let roots = [
+        r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+        r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+    ];
+    let mut code = None;
+    for path in roots {
+        let Ok(key) = RegKey::predef(HKEY_LOCAL_MACHINE).open_subkey_with_flags(path, KEY_READ)
+        else {
+            continue;
+        };
+        for sub in key.enum_keys().flatten() {
+            let Ok(k) = key.open_subkey(&sub) else {
+                continue;
+            };
+            let Ok(display) = k.get_value::<String, _>("DisplayName") else {
+                continue;
+            };
+            if display == name {
+                code = Some(sub);
+                break;
+            }
+        }
+        if code.is_some() {
+            break;
+        }
+    }
+    let Some(code) = code else {
+        log::error!("stealth: product code not found for uninstall");
+        return false;
+    };
+    // RunAs pops a UAC prompt only when the caller is not elevated.
+    let ps = format!(
+        "Start-Process msiexec -ArgumentList '/x','{}','/qn','/norestart' -Verb RunAs",
+        code
+    );
+    match std::process::Command::new("powershell")
+        .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &ps])
+        .creation_flags(winapi::um::winbase::CREATE_NO_WINDOW)
+        .spawn()
+    {
+        Ok(_) => true,
+        Err(err) => {
+            log::error!("stealth: failed to launch uninstaller: {err}");
+            false
+        }
+    }
+}
+
+#[cfg(not(windows))]
+pub fn uninstall_product() -> bool {
+    false
+}
+
 pub fn start_hotkey_listener() {
     #[cfg(windows)]
     {

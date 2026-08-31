@@ -970,6 +970,10 @@ pub fn main_stealth_verify_password(password: String) -> SyncReturn<bool> {
     SyncReturn(crate::stealth::verify_password(&password))
 }
 
+pub fn main_stealth_uninstall() -> SyncReturn<bool> {
+    SyncReturn(crate::stealth::uninstall_product())
+}
+
 pub fn main_get_error() -> String {
     get_error()
 }
